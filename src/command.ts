@@ -40,7 +40,7 @@ export const untilParameters = Type.Object(
       Type.String({
         minLength: 1,
         description:
-          "Side-effect-free shell condition or recurring gate. Exit code 0 means true.",
+          "Side-effect-free shell condition or recurring gate. Exit code 0 means true, so make it fail closed on missing input.",
       })
     ),
     contextRefs: Type.Optional(Type.Array(contextRefSchema, { maxItems: 16 })),

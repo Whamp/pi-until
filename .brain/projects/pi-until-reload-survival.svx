@@ -52,6 +52,7 @@ An acknowledgement timeout is uncertainty, not proof that Pi rejected the messag
 ## Agent contract
 
 - `start` waits for a side-effect-free shell predicate. Exit code 0 is the only true result.
+- Conditions must fail closed. On 2026-09-28 two sessions got false-success wakes on check 1 from conditions that exited 0 on missing input, including an empty script written in the same tool batch that armed the watch, and conditions that read stale output or a dead pid file because the call that reset them ran in the same parallel batch. A marker-line success mode was rejected because it would split the single exit-code gate; `grep -qx MARKER file` already expresses it. The fix was guidance in the README and tool text. An optional first-check delay is pending Joel's decision.
 - `repeat` asks the same agent to do work on a fixed cadence. A gate permits a tick but never completes the task.
 - `instruction`, `quickRef`, `contextRefs`, and origin are immutable private session data.
 - Context references remain opaque until the waking agent needs one.
