@@ -999,6 +999,7 @@ export default function piUntil(
     promptGuidelines: [
       "Use until action=start when work should resume after a side-effect-free shell condition exits 0. Do not block bash with polling or sleep loops.",
       "Write conditions that fail closed: exit 0 must prove fresh, positive evidence from this run, such as grep -qx MARKER file, not the absence of a process or leftover output. Never arm a watch in the same tool batch that writes, moves, or resets what its condition reads; the first check runs immediately.",
+      "Before re-arming a result watch, persist consumed item IDs or a source cursor and check that the new predicate rejects handled results. A delayed wake may be stale: act only on unhandled work, and do not replace a watch for a finished task.",
       "Use until action=repeat when the same agent must do work on a fixed cadence. Supply timeoutSeconds, instruction, and quickRef.",
       "Treat contextRefs as opaque pointers. Read a target only when the recurring instruction requires it.",
       "Keep recurring snapshots short and secret-free. The instruction, quickRef, and contextRefs are immutable private session data.",

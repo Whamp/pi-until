@@ -82,6 +82,7 @@ Write conditions that fail closed. Exit 0 must prove the thing happened, not tha
 - A negation such as `! pgrep -f job` is true before the job starts. Pair it with positive evidence that the job ran, such as its output file.
 - Prove the evidence is fresh. A previous run's `results.txt` or a dead process's pid file makes `test -s results.txt` or `! kill -0 $(cat pid)` true before this run does anything. Clear old output first, or check for a marker unique to this run.
 - Do not arm a watch in the same tool batch that writes, moves, or resets anything its condition reads. Parallel calls can run the first check before that call lands.
+- For result streams, persist consumed item IDs or a source cursor before re-arming. The new predicate must reject handled results. A new watch ID or a later timestamp does not make an old item unhandled. Use a stable item identity or source sequence; an update timestamp can change on an already-handled item.
 
 A `repeat` call accepts:
 
@@ -120,6 +121,7 @@ The arbiter never sends a follow-up while Pi compacts the session outside an age
 - Call `complete` only when the recurring goal is achieved. A finished turn is not a finished recurrence.
 - Call `cancel` when the recurrence should stop without success.
 - An expired or failed receipt is terminal. Do not continue its instruction unless the user asks.
+- A successful shell receipt proves the condition was true when checked, not that work remains when the wake arrives. Check whether the task is finished or the matching result was already handled. Skip handled results; re-arm only when the monitoring task continues, after recording consumption and excluding those results.
 
 ## Session display
 

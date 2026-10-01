@@ -72,7 +72,9 @@ describe("pi-until extension", () => {
 
     const [sent] = extension.messages;
     expect(sent?.message.customType).toBe("pi-until");
-    expect(sent?.message.content).toContain("condition is true");
+    expect(sent?.message.content).toContain("condition was true when checked");
+    expect(sent?.message.content).toContain("If the task is finished, stop");
+    expect(sent?.message.content).toContain("excluding handled results");
     expect(sent?.message.content).not.toContain(readyFile);
     expect(sent?.message.content).not.toContain("stdout");
     expect(sent?.message.content).not.toContain("Survived reloads");
