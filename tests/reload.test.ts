@@ -784,7 +784,7 @@ describe("pi-until across /reload", () => {
       expect(extension.messages).toHaveLength(1);
     });
     expect(extension.messages[0]?.message.content).toContain(
-      "condition is true"
+      "condition was true when checked"
     );
   });
 

@@ -40,7 +40,7 @@ export const untilParameters = Type.Object(
       Type.String({
         minLength: 1,
         description:
-          "Side-effect-free shell condition or recurring gate. Exit code 0 means true, so make it fail closed on missing input.",
+          "Side-effect-free shell condition or recurring gate. Exit 0 means true; fail closed on missing input. Re-armed result watches must exclude handled item IDs or records at/before a consumed source cursor.",
       })
     ),
     contextRefs: Type.Optional(Type.Array(contextRefSchema, { maxItems: 16 })),
