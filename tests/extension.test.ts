@@ -28,6 +28,149 @@ afterEach(async () => {
 });
 
 describe("pi-until extension", () => {
+  it.each(["status", "cancel", "none", "list", "other"] as const)(
+    "handles a queued terminal wake after %s during an active turn",
+    async (action) => {
+      const session = new FakeSession();
+      const extension = loadExtension(session);
+      live.push(extension);
+      const { ctx } = session.context({ idle: false });
+      await extension.agentStart(ctx);
+      const started = await extension.tool(
+        "queued-terminal",
+        { action: "start", condition: "true", wake: "agent" },
+        new AbortController().signal,
+        undefined,
+        ctx
+      );
+      const { id } = receiptOf(started);
+      await vi.waitFor(() => {
+        expect(extension.entries).toContainEqual({
+          customType: "pi-until-finished",
+          data: expect.objectContaining({ id, status: "succeeded" }),
+        });
+      });
+      expect(extension.messages).toHaveLength(0);
+
+      if (action === "status" || action === "cancel") {
+        const observed = await extension.tool(
+          "observe-terminal",
+          { action, id },
+          new AbortController().signal,
+          undefined,
+          ctx
+        );
+        expect(receiptOf(observed)).toMatchObject({ id, status: "succeeded" });
+      } else if (action === "list") {
+        const listed = await extension.tool(
+          "list-terminal",
+          { action: "list" },
+          new AbortController().signal,
+          undefined,
+          ctx
+        );
+        expect(listed.details).toMatchObject({
+          watches: expect.arrayContaining([
+            expect.objectContaining({ id, status: "succeeded" }),
+          ]),
+        });
+      } else if (action === "other") {
+        const other = await extension.tool(
+          "other-watch",
+          { action: "start", condition: "false", wake: "notify" },
+          new AbortController().signal,
+          undefined,
+          ctx
+        );
+        await extension.tool(
+          "other-cancel",
+          { action: "cancel", id: receiptOf(other).id },
+          new AbortController().signal,
+          undefined,
+          ctx
+        );
+        const observed = await extension.tool(
+          "other-status",
+          { action: "status", id: receiptOf(other).id },
+          new AbortController().signal,
+          undefined,
+          ctx
+        );
+        expect(receiptOf(observed).status).toBe("cancelled");
+      }
+
+      await extension.agentSettled(ctx);
+      expect(extension.messages).toHaveLength(
+        action === "status" || action === "cancel" ? 0 : 1
+      );
+      await extension.agentSettled(ctx);
+      expect(extension.messages).toHaveLength(
+        action === "status" || action === "cancel" ? 0 : 1
+      );
+    }
+  );
+
+  it.each(["status", "cancel"] as const)(
+    "%s preserves an already dispatched terminal wake and its settlement",
+    async (action) => {
+      const session = new FakeSession();
+      const extension = loadExtension(session, { acknowledgeMessages: false });
+      live.push(extension);
+      const { ctx } = session.context({ idle: false });
+      const first = await extension.tool(
+        "first-terminal",
+        { action: "start", condition: "true" },
+        new AbortController().signal,
+        undefined,
+        ctx
+      );
+      await vi.waitFor(() => {
+        expect(extension.entries).toContainEqual({
+          customType: "pi-until-finished",
+          data: expect.objectContaining({ id: receiptOf(first).id }),
+        });
+      });
+      await extension.agentSettled(ctx);
+      expect(extension.messages).toHaveLength(1);
+      await extension.tool(
+        "observe-dispatched",
+        { action, id: receiptOf(first).id },
+        new AbortController().signal,
+        undefined,
+        ctx
+      );
+      const second = await extension.tool(
+        "second-terminal",
+        { action: "start", condition: "true" },
+        new AbortController().signal,
+        undefined,
+        ctx
+      );
+      await vi.waitFor(() => {
+        expect(extension.entries).toContainEqual({
+          customType: "pi-until-finished",
+          data: expect.objectContaining({ id: receiptOf(second).id }),
+        });
+      });
+      await extension.agentSettled(ctx);
+      expect(extension.messages).toHaveLength(1);
+      await extension.acknowledgeMessage(0, ctx);
+      await extension.tool(
+        "observe-acknowledged",
+        { action, id: receiptOf(first).id },
+        new AbortController().signal,
+        undefined,
+        ctx
+      );
+      expect(extension.messages).toHaveLength(1);
+      await extension.agentSettled(ctx);
+      expect(extension.messages).toHaveLength(2);
+      expect(extension.messages[1]?.message.details).toMatchObject({
+        receipt: { id: receiptOf(second).id },
+      });
+    }
+  );
+
   it("returns immediately and wakes the agent after a later successful check", async () => {
     const directory = mkdtempSync(join(tmpdir(), "pi-until-extension-"));
     const readyFile = join(directory, "ready");
