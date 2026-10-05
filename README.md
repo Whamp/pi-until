@@ -117,6 +117,8 @@ The arbiter never sends a follow-up while Pi compacts the session outside an age
 
 ## Agent contract
 
+Reading a finished watch with `status` or `cancel` drops only that watch's queued terminal wake; `list` does not consume wakes, and already dispatched wakes still settle normally.
+
 - Treat `contextRefs` as opaque pointers. Read a target only when the instruction requires it.
 - Call `complete` only when the recurring goal is achieved. A finished turn is not a finished recurrence.
 - Call `cancel` when the recurrence should stop without success.

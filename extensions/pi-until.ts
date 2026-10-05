@@ -912,7 +912,7 @@ export default function piUntil(
 
   pi.registerTool({
     description:
-      "Start session-scoped shell-condition watches or recurring agent follow-ups. One session arbiter serializes every pi-until wake and holds wakes while Pi compacts. Recurrences use fixed cadence, immutable task snapshots, and explicit completion. Watches come back after /reload or after Pi quits and reopens the same session.",
+      "Start session-scoped shell-condition watches or recurring agent follow-ups. One session arbiter serializes every pi-until wake and holds wakes while Pi compacts. Recurrences use fixed cadence, immutable task snapshots, and explicit completion. Watches come back after /reload or after Pi quits and reopens the same session. Reading a finished watch with status or cancel drops its queued wake, never an already dispatched wake.",
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       currentContext = ctx;
       const command = parseCommand(params, ctx);
@@ -953,6 +953,12 @@ export default function piUntil(
       if (record === undefined) {
         if (historical === undefined) {
           throw new Error(`unknown pi-until watch: ${command.id}`);
+        }
+        if (command.action === "status" || command.action === "cancel") {
+          followUps.send({
+            dedupeKey: `terminal:${historical.id}:${historical.status}`,
+            type: "DROP",
+          });
         }
         return {
           content: [{ type: "text", text: receiptText(historical) }],
@@ -1005,11 +1011,12 @@ export default function piUntil(
       "Keep recurring snapshots short and secret-free. The instruction, quickRef, and contextRefs are immutable private session data.",
       "Call until action=complete only when the recurring goal is achieved. A finished agent turn is not completion.",
       "Call until action=cancel when recurring work should stop without success. Do not continue an expired or failed recurrence unless the user asks.",
+      "Reading a finished watch with status or cancel drops only that watch's queued terminal wake. list does not consume wakes, and already dispatched wakes still settle normally.",
       "After Pi restarts, run until action=list before re-arming anything. Watches from a graceful quit come back on their own when the same session reopens; re-arming them by hand creates duplicates.",
       "Use a durable workload scheduler instead when work must survive a crash, session replacement, a new or forked session, or reboot.",
     ],
     promptSnippet:
-      "Watch a shell predicate or schedule serialized work in this live Pi session",
+      "Watch a shell predicate or schedule serialized work in this live Pi session; status or cancel consumes a finished watch's queued wake",
   });
 
   pi.registerCommand("until", {
