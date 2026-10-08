@@ -284,6 +284,7 @@ export const loadExtension = (
   // SAFETY: the extension uses only appendEntry, events.emit, events.on, on,
   // registerCommand, registerTool, and sendMessage from ExtensionAPI.
   piUntil(pi as unknown as ExtensionAPI, {
+    bbBridge: options.bbBridge ?? false,
     clock: options.clock,
     compactionGraceMs: options.compactionGraceMs,
     followUpDispatchAckMs: options.followUpDispatchAckMs,

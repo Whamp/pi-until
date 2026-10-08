@@ -9,6 +9,17 @@ import { Value } from "typebox/value";
 import { createActor } from "xstate";
 import type { ActorRefFrom, SnapshotFrom } from "xstate";
 
+import { createBbWatchBridge } from "../bb-plugin-until/bridge/bb-watch-bridge.ts";
+import type {
+  BbWatchBridge,
+  BbWatchBridgeOptions,
+} from "../bb-plugin-until/bridge/bb-watch-bridge.ts";
+import { bbWatchDirectory } from "../bb-plugin-until/bridge/bb-watch-paths.ts";
+import { BB_WATCH_LABEL_LIMIT } from "../bb-plugin-until/bridge/bb-watch-protocol.ts";
+import type {
+  BbWatchRequest,
+  BbWatchView,
+} from "../bb-plugin-until/bridge/bb-watch-protocol.ts";
 import { createShellConditionRunner } from "../src/check.ts";
 import { systemClock } from "../src/clock.ts";
 import type { UntilClock } from "../src/clock.ts";
@@ -110,6 +121,7 @@ interface WatchRecord {
 }
 
 export interface PiUntilOptions {
+  readonly bbBridge?: BbWatchBridgeOptions | false;
   readonly clock?: UntilClock;
   readonly compactionGraceMs?: number;
   readonly followUpDispatchAckMs?: number;
@@ -133,6 +145,7 @@ export interface WatchReceipt {
   readonly lastExitCode?: number;
   readonly missedTicks: number;
   readonly nextDueAt?: string;
+  readonly phase?: WatchPhase;
   readonly quickRef?: string;
   readonly reloads: number;
   readonly startedAt: string;
@@ -226,6 +239,7 @@ function toReceipt(record: WatchRecord): WatchReceipt {
       status === "running"
         ? new Date(facts.nextDueAt).toISOString()
         : undefined,
+    phase: watchPhase(record),
     quickRef: recurring?.snapshot.quickRef,
     reloads: facts.reloads,
     startedAt: new Date(facts.startedAt).toISOString(),
@@ -285,7 +299,7 @@ function listText(receipts: readonly WatchReceipt[]): string {
   return receipts
     .map(
       (receipt) =>
-        `${receipt.id}\t${receipt.status}\t${receipt.label}\tattempts=${receipt.attempts}`
+        `${receipt.id}\t${receipt.status}\t${receipt.label}\tattempts=${receipt.attempts}\tphase=${receipt.phase ?? "terminal"}`
     )
     .join("\n");
 }
@@ -297,6 +311,9 @@ function receiptText(receipt: WatchReceipt): string {
     `Label: ${receipt.label}`,
     `Checks: ${receipt.attempts}`,
   ];
+  if (receipt.phase !== undefined) {
+    lines.push(`Phase: ${receipt.phase}`);
+  }
   if (receipt.kind === "recurring") {
     lines.push(
       `Deliveries: ${receipt.deliveries}`,
@@ -331,6 +348,7 @@ export default function piUntil(
   let requestIndicatorRender: (() => void) | undefined;
   let shuttingDown = false;
   let followUps: FollowUpActor;
+  let bbBridge: BbWatchBridge | undefined;
 
   const clock = options.clock ?? systemClock;
   const shellRunner = createShellConditionRunner();
@@ -353,6 +371,53 @@ export default function piUntil(
 
   const terminalReceiptFor = (id: string) =>
     terminalReceipts.find((receipt) => receipt.id === id);
+
+  const bbWatchViews = (): BbWatchView[] =>
+    allReceipts().map((receipt) => {
+      const record = watches.get(receipt.id);
+      return {
+        ...(record === undefined
+          ? displayFromReceipt(receipt)
+          : toWatchDisplay(record)),
+        label: receipt.label.slice(0, BB_WATCH_LABEL_LIMIT),
+        expiresAt:
+          receipt.expiresAt === undefined
+            ? undefined
+            : Date.parse(receipt.expiresAt),
+        finishedAt:
+          receipt.finishedAt === undefined
+            ? undefined
+            : Date.parse(receipt.finishedAt),
+        lastExitCode: receipt.lastExitCode,
+      };
+    });
+
+  const controlBbWatch = (
+    request: Exclude<BbWatchRequest, { action: "list" }>
+  ) => {
+    const record = watches.get(request.id);
+    const receipt =
+      record === undefined ? terminalReceiptFor(request.id) : toReceipt(record);
+    if (receipt === undefined) {
+      throw new Error(`Unknown pi-until watch: ${request.id}`);
+    }
+    if (request.action === "complete" && receipt.kind !== "recurring") {
+      throw new Error(
+        "Only recurring pi-until watches can be completed explicitly"
+      );
+    }
+    if (record === undefined) {
+      return;
+    }
+    void track(sessionId(currentContext), {
+      action: request.action,
+      event: "action",
+      source: "bb",
+    });
+    record.actor.send({
+      type: request.action === "complete" ? "COMPLETE" : "CANCEL",
+    });
+  };
 
   const orderedReceipts = () =>
     allReceipts().sort((left, right) => {
@@ -1239,7 +1304,7 @@ export default function piUntil(
     };
   };
 
-  pi.on("session_start", (event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     currentContext = ctx;
     listenForExternalFollowUps();
     if (shuttingDown) {
@@ -1265,10 +1330,53 @@ export default function piUntil(
       if (record !== undefined) resumeAcrossProcesses(record, ctx, "restart");
     }
     refreshIndicator();
+    const threadId = process.env.BB_THREAD_ID;
+    const bridgeOptions =
+      options.bbBridge ??
+      (threadId === undefined
+        ? false
+        : { threadId, directory: bbWatchDirectory() });
+    if (
+      ctx.mode === "rpc" &&
+      process.platform !== "win32" &&
+      process.env.PI_UNTIL_BB_BRIDGE !== "0" &&
+      bridgeOptions !== false
+    ) {
+      try {
+        bbBridge = await createBbWatchBridge(bridgeOptions, {
+          reportError: (error) => {
+            ctx.ui.notify(`pi-until BB bridge: ${error.message}`, "warning");
+          },
+          snapshot: () => ({
+            sessionId: sessionId(currentContext),
+            watches: bbWatchViews(),
+          }),
+          control: controlBbWatch,
+        });
+      } catch (error) {
+        ctx.ui.notify(
+          error instanceof Error
+            ? error.message
+            : "pi-until BB bridge failed to start",
+          "warning"
+        );
+      }
+    }
   });
 
   pi.on("session_shutdown", async (event, ctx) => {
     shuttingDown = true;
+    try {
+      await bbBridge?.close();
+    } catch (error) {
+      ctx.ui.notify(
+        error instanceof Error
+          ? error.message
+          : "pi-until BB bridge cleanup failed",
+        "warning"
+      );
+    }
+    bbBridge = undefined;
     stopExternalFollowUps?.();
     followUps.stop();
     const active = activeWatches();

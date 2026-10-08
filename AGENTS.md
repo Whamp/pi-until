@@ -6,7 +6,9 @@ Read `VISION.md` before changing behavior.
 
 ```bash
 npm install
+npm --prefix bb-plugin-until install
 npm run check
+bb plugin build bb-plugin-until
 npm run pack:dry
 ```
 
@@ -14,6 +16,8 @@ Node is `24.18.0`. Use npm `11.16.0`; never Bun. `devEngines` fails hard on any 
 
 ## Architecture
 
+- `bb-plugin-until/bridge/` owns the private live-socket protocol, Pi server, and BB host client. It is shared by the extension and the self-contained companion plugin; it never creates or restores watches.
+- `bb-plugin-until/` owns BB host routing, the thread indicator/panel, direct Cancel/Complete controls, and read-only agent status.
 - `src/command.ts` owns the provider-compatible tool schema, bridge normalization, and one-time parsing into internal commands.
 - `src/domain.ts` owns immutable watch definitions, facts, failures, and fixed-cadence math.
 - `src/clock.ts` owns the injectable clock port used by machines and tests.

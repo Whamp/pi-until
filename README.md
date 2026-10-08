@@ -141,6 +141,16 @@ pi.events.on("pi-until:watches", (watches) => {
 });
 ```
 
+## BB display
+
+The [BB companion plugin](bb-plugin-until/README.md) adds an Until indicator to each thread header and a watch panel with Cancel and Complete controls. It reads safe state from the owning Pi process on the thread’s execution host. No model turn is needed to inspect or control a watch.
+
+Install both the updated Pi extension and the companion plugin. Old extension versions have no BB bridge and show unavailable. Pi’s terminal widget and notifications are not the BB interface.
+
+The panel shows phases, counts, timing, safe labels, and recent finished receipts from the live session. It never sends conditions, output, or recurring task packets to BB. A lost host or Pi connection shows unavailable, not cached live watches. Controls carry the current process instance so stale panels cannot control a replacement process. The bridge does not start, resume, or persist watches. Set `PI_UNTIL_BB_BRIDGE=0` to disable it before starting Pi.
+
+BB agents can read the same live state through `bb_until_status`; Pi agents retain the native `until` tool. The bundled `until-bb` skill explains the panel and the existing lifecycle boundaries.
+
 ## Sharing the follow-up queue
 
 Another extension can hand an agent wake to the same session arbiter, so only one follow-up from either extension is submitted or running at a time. Emit a version 1 request on `pi-until:follow-up`:
@@ -192,7 +202,7 @@ This boundary is intentional. `pi-until` is a session primitive, not another sch
 
 ## Telemetry
 
-The extension appends one JSON line per event to `~/.pi/agent/pi-until/events.jsonl`. Nothing leaves the machine. Events: `started`, `finished`, `suspended`, `resumed`, and `action` (tool or command use). A condition is recorded only as a 12-character hash; no command fragment is written. Recurring instructions, quick references, and context pointers are never written to telemetry. Labels are written, so keep them safe.
+The extension appends one JSON line per event to `~/.pi/agent/pi-until/events.jsonl`. Nothing leaves the machine. Events: `started`, `finished`, `suspended`, `resumed`, and `action` (tool, command, or BB control use). A condition is recorded only as a 12-character hash; no command fragment is written. Recurring instructions, quick references, and context pointers are never written to telemetry. Labels are written, so keep them safe.
 
 - `PI_UNTIL_TELEMETRY=0` disables it.
 - `PI_UNTIL_TELEMETRY_FILE=/path/events.jsonl` moves it.
@@ -209,7 +219,9 @@ Use side-effect-free, idempotent checks. A condition string is arbitrary shell a
 
 ```bash
 npm install
+npm --prefix bb-plugin-until install
 npm run check
+bb plugin build bb-plugin-until
 npm run pack:dry
 ```
 

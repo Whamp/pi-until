@@ -97,7 +97,11 @@ const actionSchema = Type.Object({
     Type.Literal("resume"),
   ]),
   event: Type.Literal("action"),
-  source: Type.Union([Type.Literal("tool"), Type.Literal("command")]),
+  source: Type.Union([
+    Type.Literal("tool"),
+    Type.Literal("command"),
+    Type.Literal("bb"),
+  ]),
 });
 
 const telemetryEventSchema = Type.Union([
