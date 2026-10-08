@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-until",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Live pi-until watch indicator and controls for BB threads.",
   "license": "MIT",
   "type": "module",
@@ -17,7 +17,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.26",
+    "@get-bb/plugin-sdk": "0.6.31",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.7",
     "@types/better-sqlite3": "7.6.13",
@@ -38,7 +38,7 @@
   },
   "engines": {
     "bb": ">=0.45",
-    "bbPluginSdk": ">=0.6.26"
+    "bbPluginSdk": ">=0.6.31"
   },
   "bb": {
     "name": "Until",

@@ -1,8 +1,12 @@
 import type { HTMLAttributes } from "react";
 
-/** Plugin-owned text primitive uses the current BB theme. */
-export function Text(props: HTMLAttributes<HTMLParagraphElement>) {
-  return <p {...props} />;
+interface WatchTextProps extends HTMLAttributes<HTMLElement> {
+  as?: "p" | "span";
+}
+
+/** Plugin-owned text primitive supports inline button text without paragraph markup. */
+export function Text({ as: Component = "p", ...props }: WatchTextProps) {
+  return <Component {...props} />;
 }
 
 /** Plugin-owned section title preserves semantic headings. */

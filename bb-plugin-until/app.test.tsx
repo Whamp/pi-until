@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { z } from "zod";
 
 import type { BbWatchState, BbWatchView } from "./bridge/bb-watch-protocol.ts";
@@ -33,6 +34,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) {
     cleanup();
   }
+  vi.useRealTimers();
 });
 
 async function panel(
@@ -49,6 +51,40 @@ async function panel(
     registration,
     { threadId: "thr_test", params: null },
     {
+      rpc: {
+        watches: (input) =>
+          handler(watchRpcContract.watches.input.parse(input)),
+      },
+    }
+  );
+  cleanups.push(() => view.lifecycle.unmount());
+  return view;
+}
+
+async function banner(
+  handler: (
+    input: z.infer<typeof watchRpcContract.watches.input>
+  ) => BbWatchState,
+  providerId = "pi"
+) {
+  const app = await loadPluginApp(() => import("./app.tsx"));
+  const customization = app.composerCustomizations[0];
+  const registration = customization?.banners?.[0];
+  if (registration === undefined) {
+    throw new Error("Missing Until composer banner");
+  }
+  expect(customization?.scopes).toEqual(["thread"]);
+  expect(registration.chrome).toBe("bare");
+  expect(app.threadHeaderActions).toHaveLength(0);
+  const view = renderSlot(
+    registration,
+    {},
+    {
+      composer: {
+        scope: { kind: "thread", threadId: "thr_split" },
+        selection: { providerId },
+        layout: "compact",
+      },
       rpc: {
         watches: (input) =>
           handler(watchRpcContract.watches.input.parse(input)),
@@ -114,27 +150,13 @@ describe("BB Until UI", () => {
     expect(view.queryByText("Deployment review")).toBeNull();
   });
 
-  it("the compact indicator opens the panel for its own thread", async () => {
-    const app = await loadPluginApp(() => import("./app.tsx"));
-    const registration = app.threadHeaderActions[0];
-    if (registration === undefined) {
-      throw new Error("Missing Until indicator");
-    }
-    const view = renderSlot(
-      registration,
-      {
-        threadId: "thr_split",
-        projectId: "proj_test",
-        isCompactViewport: true,
-      },
-      { rpc: { watches: () => LIVE } }
-    );
-    cleanups.push(() => view.lifecycle.unmount());
-    await userEvent.setup().click(
-      await view.findByRole("button", {
-        name: "Until: 1 active, 1 wake pending",
-      })
-    );
+  it("keeps readable counts in a compact composer and opens its own thread panel", async () => {
+    const view = await banner(() => LIVE);
+    const button = await view.findByRole("button", {
+      name: "Until: 1 active, 1 wake pending. Open watch details.",
+    });
+    expect(button.textContent).toContain("Until · 1 active · 1 wake pending");
+    await userEvent.setup().click(button);
     expect(view.inspection.navigateCalls).toContainEqual(
       expect.objectContaining({
         method: "openThreadPanel",
@@ -145,5 +167,99 @@ describe("BB Until UI", () => {
         },
       })
     );
+  });
+
+  it("keeps ended-with-error watches visible even when none remain active", async () => {
+    const { phase, ...finishedWatch } = WATCH;
+    expect(phase).toBe("duePending");
+    const view = await banner(() => ({
+      ...LIVE,
+      watches: [{ ...finishedWatch, status: "expired" }],
+    }));
+    const button = await view.findByRole("button", {
+      name: "Until: 0 active, 1 needs attention. Open watch details.",
+    });
+    expect(button.textContent).toContain(
+      "Until · 0 active · 1 needs attention"
+    );
+  });
+
+  it("removes the row when the final watch stops without errors", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let running = true;
+    const { phase, ...finishedWatch } = WATCH;
+    expect(phase).toBe("duePending");
+    const view = await banner(() => ({
+      ...LIVE,
+      watches: running ? [WATCH] : [{ ...finishedWatch, status: "cancelled" }],
+    }));
+    await view.findByRole("button", { name: /Until: 1 active/u });
+    running = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    await waitFor(() => expect(view.queryByRole("button")).toBeNull());
+  });
+
+  it.each(["unavailable", "rpc-error"])(
+    "replaces live counts after connection loss: %s",
+    async (failure) => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      let connected = true;
+      const view = await banner(() => {
+        if (connected) return LIVE;
+        if (failure === "rpc-error") throw new Error("Pi bridge disconnected");
+        return { state: "unavailable", reason: "Pi session stopped" };
+      });
+      await view.findByRole("button", { name: /Until: 1 active/u });
+      connected = false;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      expect(
+        await view.findByRole("button", {
+          name: "Until unavailable. Open watch details.",
+        })
+      ).toBeTruthy();
+      expect(view.queryByText(/1 active/u)).toBeNull();
+      expect(view.queryByText(/wake pending/u)).toBeNull();
+    }
+  );
+
+  it("does not read Pi watches in a non-Pi composer", async () => {
+    const view = await banner(() => LIVE, "codex");
+    expect(view.queryByRole("button")).toBeNull();
+    expect(view.inspection.rpcCalls).toHaveLength(0);
+  });
+
+  it("resets to the new owning thread when the composer scope changes", async () => {
+    const view = await banner(() => LIVE);
+    await view.findByRole("button", { name: /Until: 1 active/u });
+    await view.behavior.setComposerScope({
+      kind: "thread",
+      threadId: "thr_right",
+    });
+    await userEvent
+      .setup()
+      .click(await view.findByRole("button", { name: /Until: 1 active/u }));
+    expect(view.inspection.rpcCalls).toContainEqual({
+      method: "watches",
+      input: { threadId: "thr_right", request: { action: "list" } },
+    });
+    expect(view.inspection.navigateCalls).toContainEqual(
+      expect.objectContaining({
+        method: "openThreadPanel",
+        options: {
+          actionId: "watches",
+          title: "Until",
+          params: { watchThreadId: "thr_right" },
+        },
+      })
+    );
+    await view.behavior.setComposerScope({
+      kind: "new-thread",
+      projectId: null,
+    });
+    expect(view.queryByRole("button")).toBeNull();
   });
 });
