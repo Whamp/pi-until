@@ -62,6 +62,7 @@ export const renderRecurringExpiredPacket = (
     "# Recurring follow-up expired",
     "",
     "This recurrence is no longer active. Do not continue its task unless the user asks.",
+    "Reading a finished watch with status or cancel drops only its queued terminal wake; list does not consume wakes, and already dispatched wakes still settle normally.",
     "",
     "## Quick reference",
     snapshot.quickRef,

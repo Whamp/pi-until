@@ -3,7 +3,7 @@ title: pi-until session lifecycle and delivery arbitration
 type: project
 status: active
 created: 2026-08-27
-updated: 2026-09-25
+updated: 2026-10-05
 tags: [pi-until, pi-extension, xstate, reload, recurrence, telemetry, compaction]
 ---
 
@@ -58,6 +58,7 @@ An acknowledgement timeout is uncertainty, not proof that Pi rejected the messag
 - Context references remain opaque until the waking agent needs one.
 - Only explicit `complete`, `cancel`, typed failure, or expiry ends a recurrence.
 - An expired or failed packet is inactive. The agent does not continue it without a new user request.
+- Reading a finished watch with `status` or `cancel` drops only that watch's queued terminal wake; `list` does not consume wakes, and already dispatched wakes still settle normally.
 
 The public contract lives across `README.md`, `src/command.ts`, the registered tool guidance in `extensions/pi-until.ts`, and `src/packet.ts`. `AGENTS.md` names this set so future behavior changes update it together.
 

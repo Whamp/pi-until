@@ -40,7 +40,7 @@ export const untilParameters = Type.Object(
       Type.String({
         minLength: 1,
         description:
-          "Side-effect-free shell condition or recurring gate. Exit code 0 means true, so make it fail closed on missing input.",
+          "Side-effect-free shell condition or recurring gate. Exit 0 means true; fail closed on missing input. Re-armed result watches must exclude handled item IDs or records at/before a consumed source cursor.",
       })
     ),
     contextRefs: Type.Optional(Type.Array(contextRefSchema, { maxItems: 16 })),
@@ -50,7 +50,13 @@ export const untilParameters = Type.Object(
           "Working directory for the shell gate. Defaults to Pi's current directory.",
       })
     ),
-    id: Type.Optional(Type.String({ minLength: 1, description: "Watch ID." })),
+    id: Type.Optional(
+      Type.String({
+        minLength: 1,
+        description:
+          "Watch ID. status or cancel on a finished watch consumes its queued terminal wake, never an already dispatched wake.",
+      })
+    ),
     immediate: Type.Optional(
       Type.Boolean({
         description: "For repeat: wake after this turn before fixed cadence.",

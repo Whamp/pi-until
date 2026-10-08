@@ -27,7 +27,7 @@ export const planCompletion = (
     return {
       kind: "agent",
       instruction:
-        "The condition is true. Continue the pending work using this receipt.",
+        "The condition was true when checked. Before acting, confirm the task still needs work and the matching result is unhandled. If the task is finished, stop. Do not act on a handled result again. Re-arm only for continuing work, after recording consumed item IDs or a source cursor and excluding handled results.",
     };
   }
   if (status === "timedOut") {
