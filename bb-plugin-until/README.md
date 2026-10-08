@@ -1,6 +1,6 @@
 # Until for BB
 
-A per-thread watch indicator and Until panel for pi-until. Cancel stops a watch without success. Complete marks a running recurring goal achieved. These controls call the owning Pi process directly; they do not send agent prompts or start model turns.
+A compact watch status row above the message box and an Until panel for pi-until. Cancel stops a watch without success. Complete marks a running recurring goal achieved. These controls call the owning Pi process directly; they do not send agent prompts or start model turns.
 
 The panel shows watch IDs, safe labels (at most 200 characters), lifecycle phase, check and wake counts, missed ticks, timestamps, and the last exit code. It does not show shell conditions, output, task instructions, quick references, or context pointers. “Wake pending” is distinct from an acknowledged “Follow-up running”.
 
@@ -19,11 +19,15 @@ bb plugin install ./bb-plugin-until
 
 Install the updated pi-until source through Pi package management, replacing an older source rather than loading two copies. Reload or restart the owning Pi session after that change. The BB plugin does not modify global Pi settings or install the extension for you.
 
-Local BB installs refer to this checkout. Keep it available, or reinstall the plugin from a stable checkout before removing the development environment. The plugin uses experimental BB thread-header and host-RPC APIs, tested with SDK 0.6.26 and BB 0.45.
+Local BB installs refer to this checkout. Keep it available, or reinstall the plugin from a stable checkout before removing the development environment. The plugin uses BB’s composer-banner slot and experimental host-RPC API, tested with SDK 0.6.31 and BB 0.45.
 
 ## Use
 
-Click the Until indicator in a thread header, or open Until through the thread-panel actions. The panel refreshes live state every two seconds while visible. It includes active watches and recent finished receipts from the current Pi session.
+The Until row sits above the message box, beside BB’s own status rows rather than in the thread header. It keeps its text on compact/mobile layouts, with a full-width tap target. For example: **Until · 2 active · 1 wake pending**.
+
+Tap the row to open the Until panel, or open Until through the thread-panel actions. The row and panel refresh live state every two seconds while visible. The panel includes active watches and recent finished receipts from the current Pi session.
+
+The row appears only in Pi thread composers, not new-thread or queued-message editors. A live session with no active watches or error receipts has no row. Failed, expired, and timed-out watches are counted as **needs attention**. An unavailable owner or a failed request shows **Until · unavailable**, never cached live counts. Opening the panel explains the unavailable state.
 
 - **Cancel:** stop without marking success.
 - **Complete:** only for running recurring watches; their goal must be achieved.

@@ -147,7 +147,7 @@ pi.events.on("pi-until:watches", (watches) => {
 
 ## BB display
 
-The [BB companion plugin](bb-plugin-until/README.md) adds an Until indicator to each thread header and a watch panel with Cancel and Complete controls. It reads safe state from the owning Pi process on the thread’s execution host. No model turn is needed to inspect or control a watch.
+The [BB companion plugin](bb-plugin-until/README.md) adds a compact Until status row above the message box in Pi threads and a watch panel with Cancel and Complete controls. The row stays readable on mobile, hides when a live session has no active or error watches, and shows unavailable rather than stale counts after loss of the connection. It reads safe state from the owning Pi process on the thread’s execution host. No model turn is needed to inspect or control a watch.
 
 Install both the updated Pi extension and the companion plugin. Old extension versions have no BB bridge and show unavailable. Pi’s terminal widget and notifications are not the BB interface.
 

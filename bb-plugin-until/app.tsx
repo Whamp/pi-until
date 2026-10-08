@@ -1,8 +1,10 @@
-import { definePluginApp, useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
-import type {
-  PluginThreadHeaderActionProps,
-  PluginThreadPanelProps,
+import {
+  definePluginApp,
+  useBbNavigate,
+  useComposer,
+  useRpc,
 } from "@get-bb/plugin-sdk/app";
+import type { PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import {
   QueryClient,
   QueryClientProvider,
@@ -43,10 +45,7 @@ function useWatchState(threadId: string) {
   });
 }
 
-function WatchIndicator({
-  threadId,
-  isCompactViewport,
-}: PluginThreadHeaderActionProps) {
+function WatchComposerBanner({ threadId }: { threadId: string }) {
   const navigate = useBbNavigate();
   const query = useWatchState(threadId);
   const state = query.isError ? undefined : query.data;
@@ -55,18 +54,19 @@ function WatchIndicator({
   const label =
     counts === undefined
       ? "Until unavailable"
-      : `Until: ${counts.active} active${counts.pending > 0 ? `, ${counts.pending} wake pending` : ""}${counts.failed > 0 ? `, ${counts.failed} ended with errors` : ""}`;
-  let indicatorText = "Until · offline";
-  if (query.isPending) {
-    indicatorText = "Until…";
-  } else if (counts !== undefined) {
-    indicatorText = `Until · ${counts.active}${counts.pending > 0 ? ` · ${counts.pending} pending` : ""}`;
+      : `Until: ${counts.active} active${counts.pending > 0 ? `, ${counts.pending} wake pending` : ""}${counts.failed > 0 ? `, ${counts.failed} needs attention` : ""}`;
+  if (
+    query.isPending ||
+    (counts !== undefined && counts.active === 0 && counts.failed === 0)
+  ) {
+    return null;
   }
   return (
     <Button
-      variant="ghost"
-      size={isCompactViewport ? "icon" : "sm"}
-      aria-label={label}
+      type="button"
+      variant="outline"
+      className="h-auto min-h-11 w-full justify-start whitespace-normal rounded-lg px-3 py-2 text-left font-normal text-muted-foreground"
+      aria-label={`${label}. Open watch details.`}
       onClick={() => {
         navigate.openThreadPanel({
           actionId: "watches",
@@ -75,8 +75,41 @@ function WatchIndicator({
         });
       }}
     >
-      <Icon name="Timer" className="size-4" />
-      {isCompactViewport ? null : indicatorText}
+      <Icon name="Timer" className="size-4 shrink-0" />
+      <Text
+        as="span"
+        className="min-w-0 flex-1 break-words"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {counts === undefined ? (
+          "Until · unavailable"
+        ) : (
+          <>
+            Until{" · "}
+            <Text as="span" className="whitespace-nowrap">
+              {counts.active} active
+            </Text>
+            {counts.pending > 0 ? (
+              <>
+                {" "}
+                <Text as="span" className="whitespace-nowrap">
+                  · {counts.pending} wake pending
+                </Text>
+              </>
+            ) : null}
+            {counts.failed > 0 ? (
+              <>
+                {" "}
+                <Text as="span" className="whitespace-nowrap text-destructive">
+                  · {counts.failed} needs attention
+                </Text>
+              </>
+            ) : null}
+          </>
+        )}
+      </Text>
+      <Icon name="ChevronRight" className="size-4 shrink-0" />
     </Button>
   );
 }
@@ -282,20 +315,33 @@ function WatchPanelSlot({ threadId, params }: PluginThreadPanelProps) {
   );
 }
 
-function WatchIndicatorSlot(props: PluginThreadHeaderActionProps) {
+function WatchComposerBannerSlot() {
+  const composer = useComposer();
+  if (
+    composer.scope.kind !== "thread" ||
+    composer.selection?.providerId !== "pi"
+  ) {
+    return null;
+  }
   return (
-    <WatchQueryScope key={props.threadId}>
-      <WatchIndicator {...props} />
+    <WatchQueryScope key={composer.scope.threadId}>
+      <WatchComposerBanner threadId={composer.scope.threadId} />
     </WatchQueryScope>
   );
 }
 
-/** BB owns panel navigation, responsive layout, and slot teardown. */
+/** BB places the status row above the composer and owns panel navigation. */
 export default definePluginApp((app) => {
-  app.slots.experimental_threadHeaderAction({
-    id: "indicator",
-    title: "Until watches",
-    component: WatchIndicatorSlot,
+  app.composer.customize({
+    id: "until-watches",
+    scopes: ["thread"],
+    banners: [
+      {
+        id: "watch-status",
+        chrome: "bare",
+        component: WatchComposerBannerSlot,
+      },
+    ],
   });
   app.slots.threadPanelAction({
     id: "watches",
