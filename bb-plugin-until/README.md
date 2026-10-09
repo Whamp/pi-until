@@ -27,7 +27,7 @@ The Until row sits above the message box, beside BB’s own status rows rather t
 
 Tap the row to open the Until panel, or open Until through the thread-panel actions. The row and panel refresh live state every two seconds while visible. The panel includes active watches and recent finished receipts from the current Pi session.
 
-The row appears only in Pi thread composers, not new-thread or queued-message editors. A live session with no active watches or error receipts has no row. Failed, expired, and timed-out watches are counted as **needs attention**. An unavailable owner or a failed request shows **Until · unavailable**, never cached live counts. Opening the panel explains the unavailable state.
+The row appears only in Pi thread composers with live active watches or error receipts, not new-thread or queued-message editors. Failed, expired, and timed-out watches are counted as **needs attention**. The row disappears after clean completion or cancellation, when the session closes, or when no live snapshot is available; it never leaves an **unavailable** row behind. Polling continues so new live work appears automatically. The Until panel, CLI, and agent tool still explain unavailable connections and never offer stale controls. A hidden row is not proof of successful completion.
 
 - **Cancel:** stop without marking success.
 - **Complete:** only for running recurring watches; their goal must be achieved.

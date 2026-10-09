@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-until",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Live pi-until watch indicator and controls for BB threads.",
   "license": "MIT",
   "type": "module",
