@@ -23,6 +23,16 @@ const WATCH: BbWatchView = {
   nextDueAt: 1_800_000_030_000,
   expiresAt: 1_800_000_600_000,
 };
+const UNTIL_WATCH: BbWatchView = {
+  ...WATCH,
+  id: "gate_test",
+  label: "Deployment gate",
+  kind: "until",
+  phase: "sleeping",
+  attempts: 1,
+  deliveries: 0,
+  missedTicks: 0,
+};
 const LIVE: BbWatchState = {
   state: "live",
   sessionId: "session_test",
@@ -160,59 +170,73 @@ describe("BB Until UI", () => {
     expect(view.queryByText("Deployment review")).toBeNull();
   });
 
-  it("keeps readable counts in a compact composer and opens its own thread panel", async () => {
-    const view = await banner(() => LIVE);
-    const button = await view.findByRole("button", {
-      name: "Until: 1 active, 1 wake pending. Open watch details.",
-    });
-    expect(button.textContent).toContain("Until · 1 active · 1 wake pending");
-    await userEvent.setup().click(button);
-    expect(view.inspection.navigateCalls).toContainEqual(
-      expect.objectContaining({
-        method: "openThreadPanel",
-        options: {
-          actionId: "watches",
-          title: "Until",
-          params: { watchThreadId: "thr_split" },
-        },
-      })
-    );
-  });
+  it.each([
+    {
+      watch: UNTIL_WATCH,
+      buttonName: "Until: 1 active. Open watch details.",
+      summaryText: "Until · 1 active",
+    },
+    {
+      watch: WATCH,
+      buttonName: "Until: 1 active, 1 wake pending. Open watch details.",
+      summaryText: "Until · 1 active · 1 wake pending",
+    },
+  ])(
+    "keeps readable counts for $watch.kind in a compact composer and opens its own thread panel",
+    async ({ watch, buttonName, summaryText }) => {
+      const view = await banner(() => ({ ...LIVE, watches: [watch] }));
+      const button = await view.findByRole("button", { name: buttonName });
+      expect(button.textContent).toContain(summaryText);
+      await userEvent.setup().click(button);
+      expect(view.inspection.navigateCalls).toContainEqual(
+        expect.objectContaining({
+          method: "openThreadPanel",
+          options: {
+            actionId: "watches",
+            title: "Until",
+            params: { watchThreadId: "thr_split" },
+          },
+        })
+      );
+    }
+  );
 
-  it("keeps ended-with-error watches visible even when none remain active", async () => {
-    const { phase, ...finishedWatch } = WATCH;
-    expect(phase).toBe("duePending");
-    const view = await banner(() => ({
-      ...LIVE,
-      watches: [{ ...finishedWatch, status: "expired" }],
-    }));
-    const button = await view.findByRole("button", {
-      name: "Until: 0 active, 1 needs attention. Open watch details.",
-    });
-    expect(button.textContent).toContain(
-      "Until · 0 active · 1 needs attention"
-    );
-  });
+  it.each([
+    { watch: UNTIL_WATCH, status: "timedOut" },
+    { watch: WATCH, status: "expired" },
+  ] as const)(
+    "keeps ended-with-error $watch.kind watches visible even when none remain active",
+    async ({ watch, status }) => {
+      const finishedWatch = { ...watch, status, nextDueAt: 0 };
+      delete finishedWatch.phase;
+      const view = await banner(() => ({
+        ...LIVE,
+        watches: [finishedWatch],
+      }));
+      const button = await view.findByRole("button", {
+        name: "Until: 0 active, 1 needs attention. Open watch details.",
+      });
+      expect(button.textContent).toContain(
+        "Until · 0 active · 1 needs attention"
+      );
+    }
+  );
 
-  it.each(["succeeded", "completed", "cancelled"] as const)(
-    "keeps the row hidden after the final watch is %s and its session closes",
-    async (status) => {
+  it.each([
+    { watch: UNTIL_WATCH, status: "succeeded" },
+    { watch: WATCH, status: "completed" },
+    { watch: UNTIL_WATCH, status: "cancelled" },
+    { watch: WATCH, status: "cancelled" },
+  ] as const)(
+    "keeps the row hidden after the final $watch.kind watch is $status and its session closes",
+    async ({ watch, status }) => {
       vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-      let state: BbWatchState = LIVE;
-      const { phase, ...finishedWatch } = WATCH;
-      expect(phase).toBe("duePending");
+      let state: BbWatchState = { ...LIVE, watches: [watch] };
+      const finishedWatch = { ...watch, status, nextDueAt: 0 };
+      delete finishedWatch.phase;
       const view = await banner(() => state);
       await view.findByRole("button", { name: /Until: 1 active/u });
-      state = {
-        ...LIVE,
-        watches: [
-          {
-            ...finishedWatch,
-            kind: status === "succeeded" ? "until" : "recurring",
-            status,
-          },
-        ],
-      };
+      state = { ...LIVE, watches: [finishedWatch] };
       await pollWatchSnapshot();
       expect(view.queryByRole("button")).toBeNull();
       state = { state: "unavailable", reason: "Pi session stopped" };
@@ -222,6 +246,7 @@ describe("BB Until UI", () => {
         ...LIVE,
         instanceId: "instance_next",
         sessionId: "session_next",
+        watches: [watch],
       };
       await pollWatchSnapshot();
       await view.findByRole("button", { name: /Until: 1 active/u });
