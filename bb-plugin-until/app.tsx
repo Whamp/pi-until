@@ -51,16 +51,10 @@ function WatchComposerBanner({ threadId }: { threadId: string }) {
   const state = query.isError ? undefined : query.data;
   const counts =
     state?.state === "live" ? summarizeBbWatches(state.watches) : undefined;
-  const label =
-    counts === undefined
-      ? "Until unavailable"
-      : `Until: ${counts.active} active${counts.pending > 0 ? `, ${counts.pending} wake pending` : ""}${counts.failed > 0 ? `, ${counts.failed} needs attention` : ""}`;
-  if (
-    query.isPending ||
-    (counts !== undefined && counts.active === 0 && counts.failed === 0)
-  ) {
+  if (counts === undefined || (counts.active === 0 && counts.failed === 0)) {
     return null;
   }
+  const label = `Until: ${counts.active} active${counts.pending > 0 ? `, ${counts.pending} wake pending` : ""}${counts.failed > 0 ? `, ${counts.failed} needs attention` : ""}`;
   return (
     <Button
       type="button"
@@ -82,32 +76,26 @@ function WatchComposerBanner({ threadId }: { threadId: string }) {
         aria-live="polite"
         aria-atomic="true"
       >
-        {counts === undefined ? (
-          "Until · unavailable"
-        ) : (
+        Until{" · "}
+        <Text as="span" className="whitespace-nowrap">
+          {counts.active} active
+        </Text>
+        {counts.pending > 0 ? (
           <>
-            Until{" · "}
+            {" "}
             <Text as="span" className="whitespace-nowrap">
-              {counts.active} active
+              · {counts.pending} wake pending
             </Text>
-            {counts.pending > 0 ? (
-              <>
-                {" "}
-                <Text as="span" className="whitespace-nowrap">
-                  · {counts.pending} wake pending
-                </Text>
-              </>
-            ) : null}
-            {counts.failed > 0 ? (
-              <>
-                {" "}
-                <Text as="span" className="whitespace-nowrap text-destructive">
-                  · {counts.failed} needs attention
-                </Text>
-              </>
-            ) : null}
           </>
-        )}
+        ) : null}
+        {counts.failed > 0 ? (
+          <>
+            {" "}
+            <Text as="span" className="whitespace-nowrap text-destructive">
+              · {counts.failed} needs attention
+            </Text>
+          </>
+        ) : null}
       </Text>
       <Icon name="ChevronRight" className="size-4 shrink-0" />
     </Button>

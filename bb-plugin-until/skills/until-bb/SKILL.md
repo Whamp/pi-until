@@ -5,7 +5,7 @@ description: Inspect pi-until watches in BB, explain the Until indicator and pan
 
 # Until in BB
 
-Pi thread composers have a compact Until status row above the message box. It shows active watches, pending wakes, and watches that need attention, with readable text on mobile. Tap it to open the Until thread panel. Live sessions with no active or error watches hide the row. A lost connection shows unavailable rather than cached counts. The panel reads the owning Pi process on its execution host; BB does not run checks or schedule wakes.
+Pi thread composers have a compact Until status row above the message box. It shows active watches, pending wakes, and watches that need attention, with readable text on mobile. Tap it to open the Until thread panel. The row appears only for live active watches or error receipts. Clean completion, cancellation, or loss of the connection hides it; new live work makes it appear again. Connection diagnostics remain in the Until panel and read tools. A hidden row does not prove success or permit restarting work. The panel reads the owning Pi process on its execution host; BB does not run checks or schedule wakes.
 
 - Use `bb_until_status` to read live state. It defaults to this BB thread and accepts an optional `threadId`.
 - Pi agents use the native `until` tool to start, repeat, list, inspect, cancel, or complete watches.
